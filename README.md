@@ -18,7 +18,7 @@ Use `htop` to see how many cores your environment has access to, as well as how 
 
 Once the `unshared` `chroot`-ed environment running `bash`, for example, is created on the host machine, on the host, you can inspect the environment's "parent" bash process and assign a control group to this bash process' PID (the host "knows" about and can inspect these environment processes). The bash process will obviously be spawning children processes, and all children processes to this bash process (aka a Process Tree) will be subject to the same environment and control group. 
 
-Setting control group rules can be very arcane and difficult to parse. This is just an academic exercise, it's something Docker does for you. For example, this command assigns a ruel to an example cgroup called "sandbox" that stipulates that any process tree subject to this cgroup can only use 10% of available processing power on the host machine: 
+Setting control group rules can be very arcane and difficult to parse. This is just an academic exercise, it's something Docker does for you. For example, this command assigns a rule to an example cgroup called "sandbox" that stipulates that any process tree subject to this cgroup can only use 10% of available processing power on the host machine: 
 
 ```bash
 cgset -r cpu.cfs_period_us=100000 -r cpu.cfs_quota_us=$[ 5000 * $(getconf _NPROCESSORS_ONLN) ] sandbox
@@ -31,3 +31,36 @@ cgset -r memory.limit_in_bytes=80M sandbox
 ```
 
 This is essentially what Docker accomplishes for you "under the hood." Docker does use `cgroup`.
+
+## Using Docker
+
+Docker images are basically just a large zip file of sorts. A docker image dumps out the state of a partcular container and tars it (or zips it) together. When you download a docker image, you're just pulling down the zip. When you hand off an image to docker and tell it to run it as a container, docker unzips it and performs tasks similar to those outlined in the introduction to create the container. 
+
+Containers are made to be ephemeral. They are made to be spun up and destroyed frequently. When you're using a dockerfile, just assume nothing is permanent.
+
+To create an alpine linux container and drop into an interactive shell, you can run this: 
+
+`docker run --interactive --tty alpine:3.10` or for short, `docker run -it alpine:3.10`. `docker run alpine:3.10` will simply start the container and then destroy it. You can also pass one or more shell commands simply `docker run alpine:3.10 ls`. 
+
+For example:
+
+```
+➜  frontendmasters-docker git:(main) ✗ docker run --interactive --tty alpine:3.10
+
+Unable to find image 'alpine:3.10' locally
+3.10: Pulling from library/alpine
+396c31837116: Pull complete 
+Digest: sha256:451eee8bedcb2f029756dc3e9d73bab0e7943c1ac55cff3a4861c52a0fdd3e98
+Status: Downloaded newer image for alpine:3.10
+/ # cat /etc/issue 
+Welcome to Alpine Linux 3.10
+Kernel \r on an \m (\l)
+
+/ # exit
+```
+
+To run an ubuntu image, run `docker run -it ubuntu:bionic`. If you haven't already pulled down this ubuntu image from docker hub, docker does it for you. 
+
+`docker image prune` will remove images you've downloaded, since images can be quite large. 
+
+Run `docker run ...` with the `--detach` flag to have the docker daemon start up the container in the background. Run `docker ps` to view running docker processes and use `docker attach` to "attach" to them.
