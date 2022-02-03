@@ -63,4 +63,80 @@ To run an ubuntu image, run `docker run -it ubuntu:bionic`. If you haven't alrea
 
 `docker image prune` will remove images you've downloaded, since images can be quite large. 
 
-Run `docker run ...` with the `--detach` flag to have the docker daemon start up the container in the background. Run `docker ps` to view running docker processes and use `docker attach` to "attach" to them.
+Run `docker run ...` with the `--detach` flag to have the docker daemon start up the container in the background. Run `docker ps` to view running docker processes and use `docker attach` to "attach" to them. Kill a docker process with `docker kill <dockerPID>`.
+
+Pull the official latest node image with: `docker run -it node` or `docker run -it node:latest`. At the time of taking these notes, that pulled a debian linux image with:
+
+```
+PS C:\Users\pszujewski> docker run -it node bash
+root@7506750cc201:/# cat /etc/issue
+Debian GNU/Linux 11 \n \l
+```
+
+And with node version 17 installed.
+
+Use `docker inspect` to inspect metadata on a container image that you've pulled. Use `docker exec` to run a shell command against an existing container that is already running in a detached state.
+
+`docker info` is useful if you, for example, `ssh` into a remote vm somewhere in the cloud and you want to inspect the host machine that your docker container(s) are running on. It provides info on the host machine. 
+
+`docker run -dit mongo` is a command that will run a mongo image container in a detached and interactive state (in the background, as a background docker process). The "d" is for `--detached`.
+
+`docker container prune` will prune all exited containers. `docker image list` shows all downloaded images. Prune them with `docker image prune`. `docker container list` will show all exited containers.
+
+## Dockerfiles
+
+This file contains instructions that Docker will execute line by line. The `FROM` instruction in a Dockerfile tells Docker which container image to use. 
+
+`docker build <pathtofolderwithdockerfile>` will "build" your docker container. That will produce a long id, which you can use to run the contiainer with `docker run <sha256>`. The CMD command in the dockerfile will overwrite whatever the image's default command is. 
+
+Build with a tag by executing, for example, `docker build --tag my-node-app .` where `.` means the current directory. The you simply execute `docker run my-node-app`. You can tag your docker builds with different versions of sorts for example, `docker build --tag my-node-app:2 .` You can also just write `-t` instead of `--tag`.
+
+`docker run --init --rm my-node-app`. `--init` will ensure that SIGTERM passed to docker with ctrl+C kills all child processes (spwaned docker containers). 
+
+To expose the network (allow host computer to share the network with a container), you can use `EXPOSE` in the dockerfile, or add this on the cmd line, `docker run --init --rm --publish 3000:3000 my-node-app`. Caution, `EXPOSE` doesn't work exactly the same as this publish`.
+
+You should also not allow for root user in your containers. Add `USER node` to your Dockerfile. The node container ships with a user named node already. The creators of the container set up this user in the container. Note `--chown=node:node` means the file will be copied and owned by the node user in the "node user group". 
+
+Where does docker copy the source code? `WORKDIR /home/node/src`. Use `ls -lsah` to (in addition to listing all files...) see what user and user group owns each file, and if they can "rwx" on that file.
+
+## Important note
+
+You cannot bind a http server to `localhost` in a container. `localhost` is a hard loop back that you cannot get around. That's why in the hapi configuration, `0.0.0.0` is expressly written instead of "localhost". 
+
+## Multi-stage builds
+
+This allows you to create new containers from the same base image as you go from installing app dependencies, to building the app, to finally running the app. For example, for your final Production image, you probably don't need to include your source code from which your app was built, allowing your image to be smaller. Read more here, https://docs.docker.com/develop/develop-images/multistage-build/
+
+"...let's build something first, copy the output into a new container and go from there..." So you're building one container from previous containers that are thrown away.
+
+To name a stage do something like this:
+
+```
+# First container is named "build"
+# This is the "build" stage
+FROM node:12-stretch AS build
+WORKDIR /build
+COPY package-json package-lock.json ./
+RUN npm ci
+COPY . .
+
+# Second container is for the "runtime" stage, so we'll
+# call it "runner"
+# Notice that builder and runner are using entirely different base images
+FROM alpine:3.10
+RUN apk add --update nodejs
+RUN addgroup -s node && adduser -S node -G node
+USER node
+
+RUN mkdir /home/node/code
+WORKDIR /home/node/code
+COPY --from=build --chown=node:node /build . 
+# Note "--from=build", meaning from the previous "build" stage.
+# etc, etc, etc...
+```
+
+## Different Dockerfiles for different environments
+
+For example, you could create a dev.Dockerfile and use that as your dev environment instead of your production Dockerfile. To build with a different Dockerfile, execute, for example 
+
+`docker build -t my-node-app -f dev.Dockerfile .`
