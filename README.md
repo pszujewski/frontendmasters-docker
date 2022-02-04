@@ -140,3 +140,43 @@ COPY --from=build --chown=node:node /build .
 For example, you could create a dev.Dockerfile and use that as your dev environment instead of your production Dockerfile. To build with a different Dockerfile, execute, for example 
 
 `docker build -t my-node-app -f dev.Dockerfile .`
+
+## Bind Mounts and Volumes
+
+Bind mounts allow you to mount files from your host computer into your container. If a file is "bound", both the host machine and the container can edit the same file. For example, this will run the nginx container directly.
+
+`docker run --mount type=bind,source="$(pwd)"/build,target=/usr/share/nginx/html -p 8080:80 nginx`
+
+We use the --mount flag to identify we're going to be mounting something in from the host.
+As far as I know the only two types are bind and volume. Here we're using bind because we to mount in some piece of already existing data from the host.
+
+In the source, we identify what part of the host we want to make readable-and-writable to the container. It has to be an absolute path (e.g we can't say "./build") which is why use the "$(pwd)" to get the present working directory to make it an absolute path.
+The target is where we want those files to be mounted in the container. Here we're putting it in the spot that NGINX is expecting.
+
+As a side note, you can mount as many mounts as you care to, and you mix bind and volume mounts. NGINX has a default config that we're using but if we used another bind mount to mount an NGINX config to /etc/nginx/nginx.conf it would use that instead.
+
+Volumes, on the other hand, are so that your containers can maintain state between runs. So if you have a container that runs and the next time it runs it needs the results from the previous time it ran, volumes are going to be helpful. The key here is this: bind mounts are file systems managed the host. They're just normal files in your host being mounted into a container. Volumes are different because they're a new file system that Docker manages that are mounted into your container. These Docker-managed file systems are not visible to the host system 
+
+See example "volumes", and run the following. Note, there is no setting for volumes.
+
+```
+docker build --tag=incrementor .
+docker run incrementor
+```
+
+You will just see the following since the file system is not maintained between runs.
+
+```
+file not found, writing '0' to a new file
+```
+
+With volumes, `--env` allows you to inject any environment variables you define:
+
+```
+docker run --env DATA_PATH=/data/num.txt --mount type=volume,src=incrementor-data,target=/data incrementor
+```
+
+`docker volume prune` to clean up all volumes.
+
+## Using containers as your dev environment
+
