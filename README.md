@@ -180,3 +180,39 @@ docker run --env DATA_PATH=/data/num.txt --mount type=volume,src=incrementor-dat
 
 ## Using containers as your dev environment
 
+For the `hugo-example`, this will set up some bind mounts, override the Dockerfile CMD, and run the hugo server locally. Because it uses a bind mount with your project src, editing in your local computer will update the file in the container, as far as docker is concerned.
+
+`docker run --rm -it --mount type=bind,source="$(pwd)",target=/src -p 1313:1313 -u hugo jguyomard/hugo-builder:0.55 hugo server -w --bind=0.0.0.0`
+
+For visual studio code, create a `.devcontainer` folder, and create a `Dockerfile` in that folder. You shouldn't really even put a CMD in this file. It's just for defining your dev environment.
+
+In vscode, in the bottom left, click on the "Dev Container" and then "Close Remote Connection". Then you are back in "normal vscode" (your host computer's file system...). You can edit the `.devcontainer/Dockerfile` and then "Reopen in dev container" 
+
+## Networks and Docker
+
+`docker network ls`
+
+In terms of networking, a bridge network is a Link Layer device which forwards traffic between network segments. A bridge can be a hardware device or a software device running within a host machine’s kernel.
+
+In terms of Docker, a bridge network uses a software bridge which allows containers connected to the same bridge network to communicate, while providing isolation from containers which are not connected to that bridge network. The Docker bridge driver automatically installs rules in the host machine so that containers on different bridge networks cannot communicate directly with each other.
+
+Bridge networks apply to containers running on the same Docker daemon host.
+Source: https://docs.docker.com/network/bridge/#:~:text=In%20terms%20of%20networking%2C%20a,within%20a%20host%20machine's%20kernel.
+
+Create a new docker bridge network that will allow container's on the same machine to talk to each other:
+
+`docker network create --driver=bridge app-net`
+
+This will create an arbitrary network that we can connect various containers to, and any containers connected to that network can talk to each other. 
+
+To "run" a container connected to your newly created network, for example a mongo container: `docker run -d --network=app-net -p 27017:27017 --name=db --rm mongo:3`
+
+Note, by default, the mongo server starts up at port 27017.
+
+To run the mongo client, for example:
+
+`docker run -it --network=app-net --rm mongo:3 mongo --host db`
+
+Where "mongo" is the command to run the database client, which allows you to connect to it and run queries against it. Note, the first container was called "db", in this second "run" (which is starting the db client), the host is noted to be "db" (`--host db`), which is just the name of the container that you assigned. You are telling docker to connect this container with a host of the db container. So `db` is the server here and it is therefore the "host" you want to designate. Here they are both connected to "app-net". They are "on the same network" and the second container can refer to the db container on the network as http://db, or something like that for example. 
+
+Typically you won't be setting up docker networks yourself. 
